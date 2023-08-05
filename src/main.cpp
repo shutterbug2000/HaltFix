@@ -1,5 +1,4 @@
-/*  Copyright 2022 Pretendo Network contributors <pretendo.network>
-    Copyright 2022 Ash Logan <ash@heyquark.com>
+/*  Copyright 2023 shutterbug2000
     Copyright 2019 Maschell
 
     Permission to use, copy, modify, and/or distribute this software for any purpose with or without fee is hereby
