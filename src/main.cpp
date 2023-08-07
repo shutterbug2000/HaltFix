@@ -15,6 +15,7 @@
 #include <utils/logger.h>
 #include <coreinit/screen.h>
 #include <mocha/mocha.h>
+#include <coreinit/ios.h>
 
 /**
     Mandatory plugin information.
@@ -30,8 +31,16 @@ extern "C" {
     void OSSendAppSwitchRequest(uint32_t rampid, void* args, uint32_t argsSize);
 }
 
+#define IOCTL_SVC            0x02
+
+#define ALIGN(align)                 __attribute__((aligned(align)))
+#define ALIGN_0x40                   ALIGN(0x40)
+
+int haxHandle;
+
 DECL_FUNCTION(void, PPCHalt) {
-    OSSendAppSwitchRequest(5,0,0); //from what I can tell, staying in the crashed process causes the reboot to fail. So I switch to something else (HOME Menu overlay)
+    //apparently the below line isn't needed after all? it seemed to be at one point, gonna leave it here in case lol
+    //OSSendAppSwitchRequest(0,0,0); //from what I can tell, staying in the crashed process causes the reboot to fail. So I switch to something else (HOME Menu overlay)
     OSScreenInit();
     OSScreenEnableEx(SCREEN_TV, 1);
     OSScreenEnableEx(SCREEN_DRC, 1);
@@ -45,14 +54,28 @@ DECL_FUNCTION(void, PPCHalt) {
     OSScreenFlipBuffersEx(SCREEN_TV);
     OSScreenFlipBuffersEx(SCREEN_DRC);
     OSSleepTicks(OSMillisecondsToTicks(5000));
-    Mocha_IOSUCallSVC(0x74, 0, 0, 0);
+    ALIGN_0x40 uint32_t arguments[0x40 >> 2];
+    arguments[0] = 0x74;
+
+    ALIGN_0x40 int result[0x40 >> 2];
+    int res = IOS_Ioctl(haxHandle, IOCTL_SVC, arguments, (1 + 0) * 4, result, 4);
     return;
 }
 
 INITIALIZE_PLUGIN() {
+}
+
+DEINITIALIZE_PLUGIN() {
+}
+
+ON_APPLICATION_START() {
     WHBLogUdpInit();
     WHBLogCafeInit();
     DEBUG_FUNCTION_LINE("HaltFix loaded");
+
+    //this ensures the reboot works by giving this plugin a direct iosuhax handle. idk why, but the one from libmocha sometimes seems to... vanish? by the time the reboot is attempted??
+    haxHandle = IOS_Open((char *) ("/dev/iosuhax"), static_cast<IOSOpenMode>(0));
+    DEBUG_FUNCTION_LINE("haxHandle %x!", haxHandle);
 
     auto res = Mocha_InitLibrary();
 
@@ -62,16 +85,10 @@ INITIALIZE_PLUGIN() {
     }
 }
 
-DEINITIALIZE_PLUGIN() {
+ON_APPLICATION_ENDS() {
     WHBLogUdpDeinit();
     WHBLogCafeDeinit();
     Mocha_DeInitLibrary();
-}
-
-ON_APPLICATION_START() {
-}
-
-ON_APPLICATION_ENDS() {
 }
 
 WUPS_MUST_REPLACE_FOR_PROCESS(PPCHalt, WUPS_LOADER_LIBRARY_COREINIT, PPCHalt, WUPS_FP_TARGET_PROCESS_GAME);
